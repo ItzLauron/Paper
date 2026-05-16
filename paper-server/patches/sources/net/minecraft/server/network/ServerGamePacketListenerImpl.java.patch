@@ -857,7 +857,7 @@
                                  double oyDist = yDist;
                                  xDist = targetX - this.player.getX();
                                  yDist = targetY - this.player.getY();
-@@ -1136,21 +_,101 @@
+@@ -1136,21 +_,100 @@
  
                                  zDist = targetZ - this.player.getZ();
                                  movedDist = xDist * xDist + yDist * yDist + zDist * zDist;
@@ -868,9 +868,10 @@
 +                                    && movedDist > org.spigotmc.SpigotConfig.movedWronglyThreshold // Spigot
                                      && !this.player.isSleeping()
                                      && !this.player.isCreative()
-                                     && !this.player.isSpectator()
-                                     && !this.player.isInPostImpulseGraceTime()) {
+-                                    && !this.player.isSpectator()
+-                                    && !this.player.isInPostImpulseGraceTime()) {
 -                                    fail = true;
++                                    && !this.player.isSpectator()) {
 +                                    // Paper start - Add fail move event
 +                                    io.papermc.paper.event.player.PlayerFailMoveEvent event = fireFailMove(io.papermc.paper.event.player.PlayerFailMoveEvent.FailReason.MOVED_WRONGLY,
 +                                            targetX, targetY, targetZ, targetYRot, targetXRot, true);
