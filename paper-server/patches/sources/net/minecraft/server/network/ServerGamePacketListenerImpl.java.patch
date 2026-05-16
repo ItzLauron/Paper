@@ -49,12 +49,14 @@
      private double firstGoodX;
      private double firstGoodY;
      private double firstGoodZ;
-@@ -266,7 +_,23 @@
+@@ -266,7 +_,25 @@
      private int receivedMovePacketCount;
      private int knownMovePacketCount;
      private boolean receivedMovementThisTick;
 +    // CraftBukkit start - add fields
-+    private int lastTick = MinecraftServer.currentTick;
++    private static final int MAX_ALLOWED_PLAYER_TICKS = 20; // Paper - cap accumulated movement packet budget
++    private static final int MIN_MOVE_PACKET_BURST = 5; // Paper - keep minimum movement packet burst allowance
++    private long lastTick = System.currentTimeMillis() / 50L; // Paper - use consistent time base for movement packet budget
 +    private int allowedPlayerTicks = 1;
 +    private int lastDropTick = MinecraftServer.currentTick;
 +    private int lastBookTick  = MinecraftServer.currentTick;
@@ -158,6 +160,29 @@
          return false;
      }
  
+@@ -378,6 +_,22 @@
+         this.lastGoodZ = this.player.getZ();
+     }
+ 
++    // Paper start - cap accumulated movement packet budget
++    private void updateAllowedPlayerTicks() {
++        final long currentTick = System.currentTimeMillis() / 50L;
++        final long elapsedTicks = Math.max(0L, currentTick - this.lastTick);
++
++        if (elapsedTicks > 0L) {
++            this.allowedPlayerTicks = Mth.clamp(
++            	this.allowedPlayerTicks + (int) Math.min(elapsedTicks, MAX_ALLOWED_PLAYER_TICKS),
++            	1,
++            	MAX_ALLOWED_PLAYER_TICKS
++            );
++            this.lastTick = currentTick;
++        }
++    }
++    // Paper end - cap accumulated movement packet budget
++
+     @Override
+     public boolean isAcceptingMessages() {
+         return this.connection.isConnected() && !this.waitingForSwitchToConfig;
 @@ -416,11 +_,37 @@
      @Override
      public void handlePlayerInput(final ServerboundPlayerInputPacket packet) {
@@ -223,7 +248,7 @@
                  double oldX = vehicle.getX();
                  double oldY = vehicle.getY();
                  double oldZ = vehicle.getZ();
-@@ -457,7 +_,52 @@
+@@ -457,7 +_,48 @@
                  double zDist = targetZ - this.vehicleFirstGoodZ;
                  double expectedDist = vehicle.getDeltaMovement().lengthSqr();
                  double movedDist = xDist * xDist + yDist * yDist + zDist * zDist;
@@ -239,21 +264,17 @@
 +                movedDist = Math.max(movedDist, (otherFieldX * otherFieldX + otherFieldY * otherFieldY + otherFieldZ * otherFieldZ) - 1);
 +                // Paper end - fix large move vectors killing the server
 +
-+                this.allowedPlayerTicks += (System.currentTimeMillis() / 50) - this.lastTick;
-+                this.allowedPlayerTicks = Math.max(this.allowedPlayerTicks, 1);
-+                this.lastTick = (int) (System.currentTimeMillis() / 50);
++                this.updateAllowedPlayerTicks();
 +
 +                ++this.receivedMovePacketCount;
 +                int i = this.receivedMovePacketCount - this.knownMovePacketCount;
-+                if (i > Math.max(this.allowedPlayerTicks, 5)) {
++                if (i > Math.max(this.allowedPlayerTicks, MIN_MOVE_PACKET_BURST)) {
 +                    ServerGamePacketListenerImpl.LOGGER.debug(this.player.getScoreboardName() + " is sending move packets too frequently (" + i + " packets since last tick)");
 +                    i = 1;
 +                }
 +
 +                if (movedDist > 0) {
-+                    this.allowedPlayerTicks -= 1;
-+                } else {
-+                    this.allowedPlayerTicks = 20;
++                    this.allowedPlayerTicks = Math.max(this.allowedPlayerTicks - 1, 1);
 +                }
 +                double speed;
 +                if (this.player.getAbilities().flying) {
@@ -272,7 +293,7 @@
 +                    return;
 +                }
 +                // Paper end - Prevent moving into unloaded chunks
-+                if (movedDist - expectedDist > Math.max(100.0, Mth.square(org.spigotmc.SpigotConfig.movedTooQuicklyMultiplier * (float) i * speed)) && !this.isSingleplayerOwner()) {
++                if (movedDist - expectedDist > Math.max(100.0, Mth.square(org.spigotmc.SpigotConfig.movedTooQuicklyMultiplier * speed)) && !this.isSingleplayerOwner()) { // Paper - do not scale movement distance by packet count
 +                    // CraftBukkit end
                      LOGGER.warn(
                          "{} (vehicle of {}) moved too quickly! {},{},{}", vehicle.getPlainTextName(), this.player.getPlainTextName(), xDist, yDist, zDist
@@ -736,30 +757,26 @@
                              if (this.player.isSleeping()) {
                                  if (movedDist > 1.0) {
                                      this.teleport(this.player.getX(), this.player.getY(), this.player.getZ(), targetYRot, targetXRot);
-@@ -1095,7 +_,13 @@
+@@ -1095,7 +_,11 @@
                                  if (level.tickRateManager().runsNormally()) {
                                      this.receivedMovePacketCount++;
                                      int deltaPackets = this.receivedMovePacketCount - this.knownMovePacketCount;
 -                                    if (deltaPackets > 5) {
 +                                    // CraftBukkit start - handle custom speeds and skipped ticks
-+                                    this.allowedPlayerTicks += (System.currentTimeMillis() / 50) - this.lastTick;
-+                                    this.allowedPlayerTicks = Math.max(this.allowedPlayerTicks, 1);
-+                                    this.lastTick = (int) (System.currentTimeMillis() / 50);
++                                    this.updateAllowedPlayerTicks();
 +
-+                                    if (deltaPackets > Math.max(this.allowedPlayerTicks, 5)) {
++                                    if (deltaPackets > Math.max(this.allowedPlayerTicks, MIN_MOVE_PACKET_BURST)) {
 +                                    // CraftBukkit end
                                          LOGGER.debug(
                                              "{} is sending move packets too frequently ({} packets since last tick)",
                                              this.player.getPlainTextName(),
-@@ -1103,30 +_,96 @@
+@@ -1103,30 +_,94 @@
                                          );
                                          deltaPackets = 1;
                                      }
 +                                    // CraftBukkit start - handle custom speeds and skipped ticks
 +                                    if (packet.hasRot || movedDist > 0) {
-+                                        this.allowedPlayerTicks -= 1;
-+                                    } else {
-+                                        this.allowedPlayerTicks = 20;
++                                        this.allowedPlayerTicks = Math.max(this.allowedPlayerTicks - 1, 1);
 +                                    }
 +                                    double speed;
 +                                    if (this.player.getAbilities().flying) {
@@ -783,7 +800,7 @@
                                      if (this.shouldCheckPlayerMovement(isFallFlying)) {
                                          float metersPerTick = isFallFlying ? 300.0F : 100.0F;
 -                                        if (movedDist - expectedDist > metersPerTick * deltaPackets) {
-+                                        if (movedDist - expectedDist > Math.max(metersPerTick, Mth.square(org.spigotmc.SpigotConfig.movedTooQuicklyMultiplier * (float) deltaPackets * speed))) {
++                                        if (movedDist - expectedDist > Math.max(metersPerTick, Mth.square(org.spigotmc.SpigotConfig.movedTooQuicklyMultiplier * speed))) { // Paper - do not scale movement distance by packet count
 +                                            // CraftBukkit end
 +                                            // Paper start - Add fail move event
 +                                            io.papermc.paper.event.player.PlayerFailMoveEvent event = fireFailMove(io.papermc.paper.event.player.PlayerFailMoveEvent.FailReason.MOVED_TOO_QUICKLY,
