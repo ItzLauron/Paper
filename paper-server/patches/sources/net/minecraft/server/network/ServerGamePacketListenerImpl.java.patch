@@ -290,7 +290,15 @@
                  boolean vehicleRestsOnSomething = vehicle.verticalCollisionBelow;
                  if (vehicle instanceof LivingEntity livingVehicle && livingVehicle.onClimbable()) {
                      livingVehicle.resetFallDistance();
-@@ -485,7 +_,7 @@
+@@ -478,14 +_,14 @@
+                 double oyDist = yDist;
+                 xDist = targetX - vehicle.getX();
+                 yDist = targetY - vehicle.getY();
+-                if (yDist > -0.5 || yDist < 0.5) {
++                if (yDist > -0.5 && yDist < 0.5) {
+                     yDist = 0.0;
+                 }
+ 
                  zDist = targetZ - vehicle.getZ();
                  movedDist = xDist * xDist + yDist * yDist + zDist * zDist;
                  boolean fail = false;
@@ -751,7 +759,7 @@
                                          LOGGER.debug(
                                              "{} is sending move packets too frequently ({} packets since last tick)",
                                              this.player.getPlainTextName(),
-@@ -1103,30 +_,96 @@
+@@ -1103,54 +_,200 @@
                                          );
                                          deltaPackets = 1;
                                      }
@@ -857,7 +865,10 @@
                                  double oyDist = yDist;
                                  xDist = targetX - this.player.getX();
                                  yDist = targetY - this.player.getY();
-@@ -1136,21 +_,101 @@
+-                                if (yDist > -0.5 || yDist < 0.5) {
++                                if (yDist > -0.5 && yDist < 0.5) {
+                                     yDist = 0.0;
+                                 }
  
                                  zDist = targetZ - this.player.getZ();
                                  movedDist = xDist * xDist + yDist * yDist + zDist * zDist;
