@@ -123,7 +123,20 @@
              }
          }
      }
-@@ -318,8 +_,8 @@
+@@ -312,14 +_,21 @@
+         this.player.xo = this.player.getX();
+         this.player.yo = this.player.getY();
+         this.player.zo = this.player.getZ();
++        // Paper start - revalidate player pose after tick position snap-back
++        final net.minecraft.world.entity.Pose poseBeforeTick = this.player.getPose();
+         this.player.doTick();
++        final net.minecraft.world.entity.Pose poseAfterTick = this.player.getPose();
+         this.player.absSnapTo(this.firstGoodX, this.firstGoodY, this.firstGoodZ, this.player.getYRot(), this.player.getXRot());
++        if (poseAfterTick != poseBeforeTick) {
++            this.player.revalidatePose();
++        }
++        // Paper end - revalidate player pose after tick position snap-back
+         this.tickCount++;
          this.knownMovePacketCount = this.receivedMovePacketCount;
          if (this.clientIsFloating && !this.player.isSleeping() && !this.player.isPassenger() && !this.player.isDeadOrDying()) {
              if (++this.aboveGroundTickCount > this.getMaximumFlyingTicks(this.player)) {

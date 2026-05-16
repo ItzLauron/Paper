@@ -60,6 +60,19 @@
      }
  
      private boolean isEquipped(final Item item) {
+@@ -353,6 +_,12 @@
+         }
+     }
+ 
++    // Paper start - allow revalidating player pose after connection position snap-back
++    public void revalidatePose() {
++        this.updatePlayerPose();
++    }
++    // Paper end - allow revalidating player pose after connection position snap-back
++
+     private Pose getDesiredPose() {
+         if (this.isSleeping()) {
+             return Pose.SLEEPING;
 @@ -419,6 +_,18 @@
          }
      }
